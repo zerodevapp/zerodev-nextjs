@@ -167,7 +167,12 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         }
 
         console.log("serializedSessionKeyAccount", serializedSessionKeyAccount)
-        const kernelAccount = await deserializePermissionAccount(this.getPublicClient(), serializedSessionKeyAccount)
+        const kernelAccount = await deserializePermissionAccount(
+            this.getPublicClient(),
+            serializedSessionKeyAccount,
+            undefined,
+            ENTRYPOINT_ADDRESS_V07,
+        )
         console.log("kernelAccount", kernelAccount)
         const kernelClient = this.createKernelClient(CHAIN, kernelAccount)
         // const erc20Proxy = new Erc20Proxy(USDT_CONTRACT_ADDRESS, USDT_DECIMALS)
@@ -180,30 +185,36 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         //     // clearingHouseProxy.getSetAuthorizationCallData(ORDER_GATEWAY_V2_ADDRESS, true),
         // ])
 
-        console.log("Test_ERC20Address", Test_ERC20Address)
+        // console.log("Test_ERC20Address", Test_ERC20Address)
 
-        const callData = await kernelClient.account.encodeCallData([
-            {
-                to: Test_ERC20Address,
-                value: 0n,
-                data: encodeFunctionData({
-                    abi: TEST_ERC20Abi,
-                    functionName: "mint",
-                    args: [kernelAccount.address, 100000000n],
-                }),
-            },
-        ])
+        // const callData = await kernelClient.account.encodeCallData([
+        //     {
+        //         to: Test_ERC20Address,
+        //         value: 0n,
+        //         data: encodeFunctionData({
+        //             abi: TEST_ERC20Abi,
+        //             functionName: "mint",
+        //             args: [kernelAccount.address, 100000000n],
+        //         }),
+        //     },
+        // ])
 
-        console.log("callData", callData)
+        // console.log("callData", callData)
 
-        const userOpHash = await kernelClient.sendUserOperation({
-            userOperation: {
-                callData,
-            },
+        // const userOpHash = await kernelClient.sendUserOperation({
+        //     userOperation: {
+        //         callData: "0x",
+        //     },
+        // })
+        const txHash = await kernelClient.sendTransaction({
+            to: zeroAddress,
+            value: 0n,
+            data: "0x",
         })
-        const bundlerClient = this.getBundlerClient()
-        const receipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash })
-        console.log("sendUserOpBySessionKey", userOpHash, receipt.receipt.transactionHash)
+        console.log("txHash", txHash)
+        // const bundlerClient = this.getBundlerClient()
+        // const receipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash })
+        // console.log("sendUserOpBySessionKey", userOpHash, receipt.receipt.transactionHash)
     }
 
     async verifySignature(message: string, signature: string) {
@@ -255,20 +266,21 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         const sessionKeyModularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: sessionKeySigner,
             policies: [
-                await toCallPolicy({
-                    permissions: [
-                        {
-                            target: Test_ERC20Address,
-                            valueLimit: BigInt(0),
-                            abi: TEST_ERC20Abi,
-                            functionName: "mint",
-                            args: [null, null],
-                        },
-                    ],
-                }),
-                await toSignatureCallerPolicy({
-                    allowedCallers: [MOCK_REQUESTOR_ADDRESS],
-                }),
+                await toSudoPolicy({}),
+                // await toCallPolicy({
+                //     permissions: [
+                //         {
+                //             target: Test_ERC20Address,
+                //             valueLimit: BigInt(0),
+                //             abi: TEST_ERC20Abi,
+                //             functionName: "mint",
+                //             args: [null, null],
+                //         },
+                //     ],
+                // }),
+                // await toSignatureCallerPolicy({
+                //     allowedCallers: [MOCK_REQUESTOR_ADDRESS],
+                // }),
             ],
             entryPoint: this.getEntryPoint(),
         })
@@ -281,6 +293,10 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
                 sudo: modularPermissionPlugin,
                 regular: sessionKeyModularPermissionPlugin,
                 entryPoint: this.getEntryPoint(),
+                executorData: {
+                    executor: zeroAddress,
+                    selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),
+                },
             },
         })
 
@@ -346,20 +362,21 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         const sessionKeyModularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: sessionKeySigner,
             policies: [
-                await toCallPolicy({
-                    permissions: [
-                        {
-                            target: Test_ERC20Address,
-                            valueLimit: BigInt(0),
-                            abi: TEST_ERC20Abi,
-                            functionName: "mint",
-                            args: [null, null],
-                        },
-                    ],
-                }),
-                await toSignatureCallerPolicy({
-                    allowedCallers: [MOCK_REQUESTOR_ADDRESS],
-                }),
+                await toSudoPolicy({}),
+                // await toCallPolicy({
+                //     permissions: [
+                //         {
+                //             target: Test_ERC20Address,
+                //             valueLimit: BigInt(0),
+                //             abi: TEST_ERC20Abi,
+                //             functionName: "mint",
+                //             args: [null, null],
+                //         },
+                //     ],
+                // }),
+                // await toSignatureCallerPolicy({
+                //     allowedCallers: [MOCK_REQUESTOR_ADDRESS],
+                // }),
             ],
             entryPoint: this.getEntryPoint(),
         })
@@ -370,18 +387,22 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
                 sudo: modularPermissionPlugin,
                 regular: sessionKeyModularPermissionPlugin,
                 entryPoint: this.getEntryPoint(),
+                executorData: {
+                    executor: zeroAddress,
+                    selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),
+                },
             },
         })
     }
 
     async createPasskeyKernelAccount(passkeyName: string, mode: WebAuthnMode) {
         const publicClient = this.getPublicClient()
-
         const webAuthnModularSigner = await toWebAuthnSigner(publicClient, {
             passkeyName,
             passkeyServerUrl: PASSKEY_SERVER_URL,
             mode,
         })
+
         const modularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: webAuthnModularSigner,
             policies: [await toSudoPolicy({})],
@@ -393,6 +414,10 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
             plugins: {
                 sudo: modularPermissionPlugin,
                 entryPoint: this.getEntryPoint(),
+                executorData: {
+                    executor: zeroAddress,
+                    selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),
+                },
             },
         })
     }

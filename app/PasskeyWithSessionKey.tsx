@@ -1,8 +1,10 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useSessionKeyStore } from "@/app/sessionKeyStore"
 import { ModularZerodev } from "@/app/ModularZerodev"
 import { WebAuthnMode } from "@zerodev/permission-validator/signers"
 import { Hex } from "viem"
+import { KernelSmartAccount } from "@zerodev/sdk"
+import { EntryPoint } from "permissionless/types"
 
 export function PasskeyWithSessionKey() {
     const [email, setEmail] = useState("tempofeng@gmail.com")
