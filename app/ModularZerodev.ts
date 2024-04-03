@@ -203,7 +203,14 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
 
         // const userOpHash = await kernelClient.sendUserOperation({
         //     userOperation: {
-        //         callData: "0x",
+        //         callData: await kernelClient.account.encodeCallData({
+        //             to: zeroAddress,
+        //             value: 0n,
+        //             data: "0x",
+        //         }),
+        //         callGasLimit: 2500000,
+        //         verificationGasLimit: 348114,
+        //         preVerificationGas: 59060,
         //     },
         // })
         const txHash = await kernelClient.sendTransaction({
@@ -293,8 +300,8 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
                 sudo: modularPermissionPlugin,
                 regular: sessionKeyModularPermissionPlugin,
                 entryPoint: this.getEntryPoint(),
-                executorData: {
-                    executor: zeroAddress,
+                action: {
+                    address: zeroAddress,
                     selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),
                 },
             },
@@ -331,8 +338,8 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
             plugins: {
                 entryPoint: this.getEntryPoint(),
                 sudo: modularPermissionPlugin,
-                executorData: {
-                    executor: zeroAddress,
+                action: {
+                    address: zeroAddress,
                     selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),
                 },
             },
@@ -387,8 +394,8 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
                 sudo: modularPermissionPlugin,
                 regular: sessionKeyModularPermissionPlugin,
                 entryPoint: this.getEntryPoint(),
-                executorData: {
-                    executor: zeroAddress,
+                action: {
+                    address: zeroAddress,
                     selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),
                 },
             },
@@ -414,8 +421,8 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
             plugins: {
                 sudo: modularPermissionPlugin,
                 entryPoint: this.getEntryPoint(),
-                executorData: {
-                    executor: zeroAddress,
+                action: {
+                    address: zeroAddress,
                     selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),
                 },
             },
