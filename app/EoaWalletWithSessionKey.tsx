@@ -1,10 +1,8 @@
 import { useWalletClient } from "wagmi"
 import { ModularZerodev } from "@/app/ModularZerodev"
 import { useSessionKeyStore } from "@/app/sessionKeyStore"
-import { useRef, useState } from "react"
+import { useState } from "react"
 import { Hex } from "viem"
-import { KernelSmartAccount } from "@zerodev/sdk"
-import { EntryPoint } from "permissionless/types"
 
 export function EoaWalletWithSessionKey() {
     const [smartWalletAddress, setSmartWalletAddress] = useState<string>()

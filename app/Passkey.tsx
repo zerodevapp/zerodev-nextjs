@@ -1,7 +1,7 @@
 import { useRef, useState } from "react"
 import { useSessionKeyStore } from "@/app/sessionKeyStore"
 import { ModularZerodev } from "@/app/ModularZerodev"
-import { WebAuthnMode } from "@zerodev/permission-validator/signers"
+import { WebAuthnMode } from "@zerodev/permissions/signers"
 import { KernelSmartAccount } from "@zerodev/sdk"
 import { EntryPoint } from "permissionless/types"
 

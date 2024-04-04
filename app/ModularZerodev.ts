@@ -1,5 +1,5 @@
 import { SessionKeyStore } from "@/app/sessionKeyStore"
-import { toECDSASigner, toWebAuthnSigner, WebAuthnMode } from "@zerodev/permission-validator/signers"
+import { toECDSASigner, toWebAuthnSigner, WebAuthnMode } from "@zerodev/permissions/signers"
 import {
     type Account,
     Address,
@@ -16,13 +16,8 @@ import {
     getAbiItem,
 } from "viem"
 import { optimism, sepolia } from "viem/chains"
-import {
-    toPermissionValidator,
-    deserializePermissionAccount,
-    serializePermissionAccount,
-} from "@zerodev/permission-validator"
-import { toCallPolicy, toSignatureCallerPolicy, toSudoPolicy } from "@zerodev/permission-validator/policies"
-import { signerToEcdsaValidator } from "@zerodev/ecdsa-validator"
+import { toPermissionValidator, deserializePermissionAccount, serializePermissionAccount } from "@zerodev/permissions"
+import { ParamCondition, toCallPolicy, toSignatureCallerPolicy, toSudoPolicy } from "@zerodev/permissions/policies"
 import { privateKeyToAccount } from "viem/accounts"
 import {
     createKernelAccount,
@@ -48,7 +43,6 @@ import { ClearingHouseProxy } from "@/app/ClearingHouseProxy"
 import { EntryPoint } from "permissionless/types"
 import { TEST_ERC20Abi } from "./abis/Test_ERC20Abi"
 import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
-import { createPasskeyValidator, getPasskeyValidator, WEBAUTHN_VALIDATOR_ADDRESS_V07 } from "@zerodev/passkey-validator"
 
 const BUNDLER_URL = `https://meta-aa-provider.onrender.com/api/v3/bundler/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?bundlerProvider=PIMLICO`
 const PAYMASTER_URL = `https://meta-aa-provider.onrender.com/api/v2/paymaster/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?paymasterProvider=PIMLICO`
@@ -82,10 +76,6 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
     }
 
     private getPimlicoBundlerClient = () => {
-        console.log(
-            "process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_RPC_HOST",
-            process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_RPC_HOST,
-        )
         if (!process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_RPC_HOST)
             throw new Error("NEXT_PIMLICO_BUNDLER_RPC_HOST environment variable not set")
 
@@ -187,41 +177,26 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
 
         // console.log("Test_ERC20Address", Test_ERC20Address)
 
-        // const callData = await kernelClient.account.encodeCallData([
-        //     {
-        //         to: Test_ERC20Address,
-        //         value: 0n,
-        //         data: encodeFunctionData({
-        //             abi: TEST_ERC20Abi,
-        //             functionName: "mint",
-        //             args: [kernelAccount.address, 100000000n],
-        //         }),
-        //     },
-        // ])
+        const callData = await kernelClient.account.encodeCallData([
+            {
+                to: Test_ERC20Address,
+                value: 0n,
+                data: encodeFunctionData({
+                    abi: TEST_ERC20Abi,
+                    functionName: "mint",
+                    args: [zeroAddress, 100000000n],
+                }),
+            },
+        ])
 
-        // console.log("callData", callData)
-
-        // const userOpHash = await kernelClient.sendUserOperation({
-        //     userOperation: {
-        //         callData: await kernelClient.account.encodeCallData({
-        //             to: zeroAddress,
-        //             value: 0n,
-        //             data: "0x",
-        //         }),
-        //         callGasLimit: 2500000,
-        //         verificationGasLimit: 348114,
-        //         preVerificationGas: 59060,
-        //     },
-        // })
-        const txHash = await kernelClient.sendTransaction({
-            to: zeroAddress,
-            value: 0n,
-            data: "0x",
+        const userOpHash = await kernelClient.sendUserOperation({
+            userOperation: {
+                callData,
+            },
         })
-        console.log("txHash", txHash)
-        // const bundlerClient = this.getBundlerClient()
-        // const receipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash })
-        // console.log("sendUserOpBySessionKey", userOpHash, receipt.receipt.transactionHash)
+        const bundlerClient = this.getBundlerClient()
+        const receipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash })
+        console.log("sendUserOpBySessionKey", userOpHash, receipt.receipt.transactionHash)
     }
 
     async verifySignature(message: string, signature: string) {
@@ -273,21 +248,20 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         const sessionKeyModularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: sessionKeySigner,
             policies: [
-                await toSudoPolicy({}),
-                // await toCallPolicy({
-                //     permissions: [
-                //         {
-                //             target: Test_ERC20Address,
-                //             valueLimit: BigInt(0),
-                //             abi: TEST_ERC20Abi,
-                //             functionName: "mint",
-                //             args: [null, null],
-                //         },
-                //     ],
-                // }),
-                // await toSignatureCallerPolicy({
-                //     allowedCallers: [MOCK_REQUESTOR_ADDRESS],
-                // }),
+                await toCallPolicy({
+                    permissions: [
+                        {
+                            target: Test_ERC20Address,
+                            valueLimit: BigInt(0),
+                            abi: TEST_ERC20Abi,
+                            functionName: "mint",
+                            args: [{ condition: ParamCondition.EQUAL, value: zeroAddress }, null],
+                        },
+                    ],
+                }),
+                await toSignatureCallerPolicy({
+                    allowedCallers: [MOCK_REQUESTOR_ADDRESS],
+                }),
             ],
             entryPoint: this.getEntryPoint(),
         })
@@ -319,8 +293,6 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         const eoaSigner = walletClientToSmartAccountSigner(walletClient)
         const eoaEcdsaSigner = toECDSASigner({ signer: eoaSigner })
 
-        console.log("eoaEcdsaSigner", eoaEcdsaSigner)
-
         console.log("create eoaEcdsaSigner", Date.now() - start)
 
         const modularPermissionPlugin = await toPermissionValidator(publicClient, {
@@ -328,8 +300,6 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
             policies: [await toSudoPolicy({})],
             entryPoint: this.getEntryPoint(),
         })
-
-        console.log("create modularPermissionPlugin", modularPermissionPlugin)
 
         console.log("create modularPermissionPlugin", Date.now() - start)
 
@@ -369,21 +339,20 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         const sessionKeyModularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: sessionKeySigner,
             policies: [
-                await toSudoPolicy({}),
-                // await toCallPolicy({
-                //     permissions: [
-                //         {
-                //             target: Test_ERC20Address,
-                //             valueLimit: BigInt(0),
-                //             abi: TEST_ERC20Abi,
-                //             functionName: "mint",
-                //             args: [null, null],
-                //         },
-                //     ],
-                // }),
-                // await toSignatureCallerPolicy({
-                //     allowedCallers: [MOCK_REQUESTOR_ADDRESS],
-                // }),
+                await toCallPolicy({
+                    permissions: [
+                        {
+                            target: Test_ERC20Address,
+                            valueLimit: BigInt(0),
+                            abi: TEST_ERC20Abi,
+                            functionName: "mint",
+                            args: [{ condition: ParamCondition.EQUAL, value: zeroAddress }, null],
+                        },
+                    ],
+                }),
+                await toSignatureCallerPolicy({
+                    allowedCallers: [MOCK_REQUESTOR_ADDRESS],
+                }),
             ],
             entryPoint: this.getEntryPoint(),
         })

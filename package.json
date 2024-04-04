@@ -9,10 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@zerodev/passkey-validator": "5.2.0-beta.4",
-    "@zerodev/permission-validator": "5.0.0-alpha.15",
-    "@zerodev/ecdsa-validator": "5.2.0-alpha-0",
-    "@zerodev/sdk": "5.2.0-alpha-4",
+    "@zerodev/passkey-validator": "5.2.1-alpha.0",
+    "@zerodev/permissions": "5.2.1-alpha.3",
+    "@zerodev/sdk": "5.2.1-alpha-0",
     "big.js": "6.2.1",
     "immer": "10.0.3",
     "next": "14.1.0",
