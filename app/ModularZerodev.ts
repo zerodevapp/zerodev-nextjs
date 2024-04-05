@@ -33,7 +33,7 @@ import {
     getAction,
     walletClientToSmartAccountSigner,
 } from "permissionless"
-import { readContract } from "viem/actions"
+import { readContract, writeContract } from "viem/actions"
 import { MockRequestorAbi } from "./abis/MockRequestorAbi"
 import { erc20Abi, Erc20Proxy } from "@/app/Erc20Proxy"
 import Big from "big.js"
@@ -49,7 +49,7 @@ const PAYMASTER_URL = `https://meta-aa-provider.onrender.com/api/v2/paymaster/${
 const PASSKEY_SERVER_URL = `https://passkeys.zerodev.app/api/v3/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}`
 export const CHAIN = sepolia
 
-export const MOCK_REQUESTOR_ADDRESS = "0x67e0a05806A54f6C2162a91810BD50eFe28e0460" as Address
+export const MOCK_REQUESTOR_ADDRESS = "0xF972dba9e3642d32050c3a9E6c1a1F8A809EB910" as Address
 export const USDT_CONTRACT_ADDRESS = "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" as Address
 export const USDT_DECIMALS = 6
 
@@ -124,7 +124,11 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
             return undefined
         }
 
-        const kernelAccount = await deserializePermissionAccount(this.getPublicClient(), serializedSessionKeyAccount)
+        const kernelAccount = await deserializePermissionAccount(
+            this.getPublicClient(),
+            this.getEntryPoint(),
+            serializedSessionKeyAccount,
+        )
         const kernelClient = this.createKernelClient(CHAIN, kernelAccount)
         const sig = await kernelClient.signMessage({
             message,
@@ -159,9 +163,8 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         console.log("serializedSessionKeyAccount", serializedSessionKeyAccount)
         const kernelAccount = await deserializePermissionAccount(
             this.getPublicClient(),
+            this.getEntryPoint(),
             serializedSessionKeyAccount,
-            undefined,
-            ENTRYPOINT_ADDRESS_V07,
         )
         console.log("kernelAccount", kernelAccount)
         const kernelClient = this.createKernelClient(CHAIN, kernelAccount)
@@ -205,8 +208,13 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
             return
         }
 
-        const kernelAccount = await deserializePermissionAccount(this.getPublicClient(), serializedSessionKeyAccount)
+        const kernelAccount = await deserializePermissionAccount(
+            this.getPublicClient(),
+            this.getEntryPoint(),
+            serializedSessionKeyAccount,
+        )
         const kernelClient = this.createKernelClient(CHAIN, kernelAccount)
+        console.log("kernelClient", kernelClient)
         const response = await getAction(
             kernelClient.account.client,
             readContract,
@@ -273,7 +281,6 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
             plugins: {
                 sudo: modularPermissionPlugin,
                 regular: sessionKeyModularPermissionPlugin,
-                entryPoint: this.getEntryPoint(),
                 action: {
                     address: zeroAddress,
                     selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),
@@ -306,7 +313,6 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         const kernelAccount = await createKernelAccount(publicClient, {
             entryPoint: this.getEntryPoint(),
             plugins: {
-                entryPoint: this.getEntryPoint(),
                 sudo: modularPermissionPlugin,
                 action: {
                     address: zeroAddress,
@@ -362,7 +368,6 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
             plugins: {
                 sudo: modularPermissionPlugin,
                 regular: sessionKeyModularPermissionPlugin,
-                entryPoint: this.getEntryPoint(),
                 action: {
                     address: zeroAddress,
                     selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),
@@ -389,7 +394,6 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
             entryPoint: this.getEntryPoint(),
             plugins: {
                 sudo: modularPermissionPlugin,
-                entryPoint: this.getEntryPoint(),
                 action: {
                     address: zeroAddress,
                     selector: toFunctionSelector(getAbiItem({ abi: KernelV3ExecuteAbi, name: "execute" })),

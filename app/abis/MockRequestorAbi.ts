@@ -1,13 +1,13 @@
 export const MockRequestorAbi = [
     {
-        type: "function",
-        name: "verifySignature",
         inputs: [
-            { name: "kernel", type: "address", internalType: "address" },
-            { name: "hash", type: "bytes32", internalType: "bytes32" },
-            { name: "signature", type: "bytes", internalType: "bytes" },
+            { internalType: "address", name: "kernel", type: "address" },
+            { internalType: "bytes32", name: "hash", type: "bytes32" },
+            { internalType: "bytes", name: "signature", type: "bytes" },
         ],
-        outputs: [{ name: "", type: "bool", internalType: "bool" }],
+        name: "verifySignature",
+        outputs: [{ internalType: "bool", name: "", type: "bool" }],
         stateMutability: "payable",
+        type: "function",
     },
 ] as const
