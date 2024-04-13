@@ -5,18 +5,18 @@ import {
     Address,
     Chain,
     createPublicClient,
+    encodeFunctionData,
+    getAbiItem,
     hashMessage,
     Hex,
     http,
+    toFunctionSelector,
     type Transport,
     WalletClient,
-    encodeFunctionData,
     zeroAddress,
-    toFunctionSelector,
-    getAbiItem,
 } from "viem"
-import { optimism, optimismSepolia, sepolia } from "viem/chains"
-import { toPermissionValidator, deserializePermissionAccount, serializePermissionAccount } from "@zerodev/permissions"
+import { optimism } from "viem/chains"
+import { deserializePermissionAccount, serializePermissionAccount, toPermissionValidator } from "@zerodev/permissions"
 import { ParamCondition, toCallPolicy, toSignatureCallerPolicy, toSudoPolicy } from "@zerodev/permissions/policies"
 import { privateKeyToAccount } from "viem/accounts"
 import {
@@ -33,13 +33,11 @@ import {
     getAction,
     walletClientToSmartAccountSigner,
 } from "permissionless"
-import { readContract, writeContract } from "viem/actions"
+import { readContract } from "viem/actions"
 import { MockRequestorAbi } from "./abis/MockRequestorAbi"
 import { erc20Abi, Erc20Proxy } from "@/app/Erc20Proxy"
 import Big from "big.js"
-import { clearingHouseABI, vaultABI } from "@/app/types/wagmi/generated"
-import { VaultProxy } from "@/app/VaultProxy"
-import { ClearingHouseProxy } from "@/app/ClearingHouseProxy"
+import { clearingHouseAbi, orderGatewayV2Abi, pythOracleAdapterAbi, vaultAbi } from "@/app/types/wagmi/generated"
 import { EntryPoint } from "permissionless/types"
 import { TEST_ERC20Abi } from "./abis/Test_ERC20Abi"
 import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
@@ -47,23 +45,24 @@ import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
 const BUNDLER_URL = `https://rpc.zerodev.app/api/v2/bundler/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?bundlerProvider=PIMLICO`
 const PAYMASTER_URL = `https://rpc.zerodev.app/api/v2/paymaster/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?paymasterProvider=PIMLICO`
 const PASSKEY_SERVER_URL = `https://passkeys.zerodev.app/api/v3/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}`
-export const CHAIN = optimismSepolia
+export const CHAIN = optimism
 
 export const MOCK_REQUESTOR_ADDRESS = "0xF972dba9e3642d32050c3a9E6c1a1F8A809EB910" as Address
 export const USDT_CONTRACT_ADDRESS = "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" as Address
 export const USDT_DECIMALS = 6
 
-export const VAULT_ADDRESS = "0x5aa45D0349c54D5BD241Dc6ece7b42601179ec59" as Address
+export const VAULT_ADDRESS = "0x4ef70e03Bf3043c0D20ef8F72eA51D58D908930F" as Address
 
-export const CLEARING_HOUSE_ADDRESS = "0x4570e98cEF4b602B7A66f51CD6A51E2281075a46" as Address
+export const CLEARING_HOUSE_ADDRESS = "0x30F66e2e8696548aFc91A14eb66e87157C1a4519" as Address
 
-export const ORDER_GATEWAY_V2_ADDRESS = "0x186841f8c1B9514D7B627A691b7d15831A17553B" as Address
+export const ORDER_GATEWAY_V2_ADDRESS = "0x4f840EFE70E41052352127efdC498bF95631b92F" as Address
 
 // For testing purposes
 export const Test_ERC20Address = "0x3870419Ba2BBf0127060bCB37f69A1b1C090992B" as Address
 
 export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined> {
-    constructor(private readonly sessionKeyStore: SessionKeyStore) {}
+    constructor(private readonly sessionKeyStore: SessionKeyStore) {
+    }
 
     private getEntryPoint(): EntryPoint {
         return ENTRYPOINT_ADDRESS_V07
@@ -252,22 +251,7 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
 
         const sessionKeyModularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: sessionKeySigner,
-            policies: [
-                await toCallPolicy({
-                    permissions: [
-                        {
-                            target: Test_ERC20Address,
-                            valueLimit: BigInt(0),
-                            abi: TEST_ERC20Abi,
-                            functionName: "mint",
-                            args: [{ condition: ParamCondition.EQUAL, value: zeroAddress }, null],
-                        },
-                    ],
-                }),
-                await toSignatureCallerPolicy({
-                    allowedCallers: [MOCK_REQUESTOR_ADDRESS],
-                }),
-            ],
+            policies: this.getPolicies(),
             entryPoint: this.getEntryPoint(),
         })
 
@@ -290,6 +274,100 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         return kernelAccount
     }
 
+    private getPolicies() {
+        return [
+            toCallPolicy({
+                permissions: [
+                    {
+                        target: USDT_CONTRACT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        abi: erc20Abi,
+                        functionName: "approve",
+                        args: [{ condition: ParamCondition.EQUAL, value: VAULT_ADDRESS }, null],
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // @ts-ignore
+                        functionName: "deposit",
+                        args: [null, null],
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // @ts-ignore
+                        functionName: "withdraw",
+                        args: [null],
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // functionName: "transferFundToMargin",
+                        // args: [null, null],
+                        sig: toFunctionSelector("transferFundToMargin(uint256,uint256)"),
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // functionName: "transferMarginToFund",
+                        // args: [null, null],
+                        sig: toFunctionSelector("transferMarginToFund(uint256,uint256)"),
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // @ts-ignore
+                        functionName: "setAuthorization",
+                        args: [null, null],
+                    },
+                    {
+                        target: CLEARING_HOUSE_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: clearingHouseAbi,
+                        // @ts-ignore
+                        functionName: "setAuthorization",
+                        args: [null, null],
+                    },
+                    {
+                        target: CLEARING_HOUSE_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: pythOracleAdapterAbi,
+                        // @ts-ignore
+                        functionName: "updatePrice",
+                        args: [null, null],
+                    },
+                    {
+                        target: ORDER_GATEWAY_V2_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: orderGatewayV2Abi,
+                        // @ts-ignore
+                        functionName: "cancelOrder",
+                        args: [null, null],
+                    },
+                    {
+                        target: zeroAddress,
+                    },
+                ],
+            }),
+            toSignatureCallerPolicy({
+                allowedCallers: [MOCK_REQUESTOR_ADDRESS],
+            }),
+        ]
+    }
+
     async createEoaKernelAccount(walletClient: WalletClient<Transport, TChain, Account>) {
         const start = Date.now()
 
@@ -301,7 +379,7 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
 
         const modularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: eoaEcdsaSigner,
-            policies: [await toSudoPolicy({})],
+            policies: [toSudoPolicy({})],
             entryPoint: this.getEntryPoint(),
         })
 
@@ -333,7 +411,7 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         })
         const modularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: webAuthnModularSigner,
-            policies: [await toSudoPolicy({})],
+            policies: [toSudoPolicy({})],
             entryPoint: this.getEntryPoint(),
         })
 
@@ -341,22 +419,7 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         const sessionKeySigner = toECDSASigner({ signer: sessionKeyAccount })
         const sessionKeyModularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: sessionKeySigner,
-            policies: [
-                await toCallPolicy({
-                    permissions: [
-                        {
-                            target: Test_ERC20Address,
-                            valueLimit: BigInt(0),
-                            abi: TEST_ERC20Abi,
-                            functionName: "mint",
-                            args: [{ condition: ParamCondition.EQUAL, value: zeroAddress }, null],
-                        },
-                    ],
-                }),
-                await toSignatureCallerPolicy({
-                    allowedCallers: [MOCK_REQUESTOR_ADDRESS],
-                }),
-            ],
+            policies: this.getPolicies(),
             entryPoint: this.getEntryPoint(),
         })
 
