@@ -15,7 +15,7 @@ import {
     toFunctionSelector,
     getAbiItem,
 } from "viem"
-import { optimism, sepolia } from "viem/chains"
+import { optimism, optimismSepolia, sepolia } from "viem/chains"
 import { toPermissionValidator, deserializePermissionAccount, serializePermissionAccount } from "@zerodev/permissions"
 import { ParamCondition, toCallPolicy, toSignatureCallerPolicy, toSudoPolicy } from "@zerodev/permissions/policies"
 import { privateKeyToAccount } from "viem/accounts"
@@ -44,10 +44,10 @@ import { EntryPoint } from "permissionless/types"
 import { TEST_ERC20Abi } from "./abis/Test_ERC20Abi"
 import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
 
-const BUNDLER_URL = `https://meta-aa-provider.onrender.com/api/v3/bundler/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?bundlerProvider=PIMLICO`
-const PAYMASTER_URL = `https://meta-aa-provider.onrender.com/api/v2/paymaster/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?paymasterProvider=PIMLICO`
+const BUNDLER_URL = `https://rpc.zerodev.app/api/v2/bundler/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?bundlerProvider=PIMLICO`
+const PAYMASTER_URL = `https://rpc.zerodev.app/api/v2/paymaster/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?paymasterProvider=PIMLICO`
 const PASSKEY_SERVER_URL = `https://passkeys.zerodev.app/api/v3/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}`
-export const CHAIN = sepolia
+export const CHAIN = optimismSepolia
 
 export const MOCK_REQUESTOR_ADDRESS = "0xF972dba9e3642d32050c3a9E6c1a1F8A809EB910" as Address
 export const USDT_CONTRACT_ADDRESS = "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" as Address
@@ -76,12 +76,9 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
     }
 
     private getPimlicoBundlerClient = () => {
-        if (!process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_RPC_HOST)
-            throw new Error("NEXT_PIMLICO_BUNDLER_RPC_HOST environment variable not set")
-
         return createPimlicoBundlerClient({
             chain: CHAIN,
-            transport: http(`${process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_RPC_HOST}`),
+            transport: http(BUNDLER_URL),
             entryPoint: this.getEntryPoint(),
         })
     }
