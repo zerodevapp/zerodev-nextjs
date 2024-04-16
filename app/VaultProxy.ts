@@ -1,6 +1,6 @@
 import { USDT_DECIMALS, VAULT_ADDRESS } from "@/app/ModularZerodev"
 import { big2Bigint } from "@/app/bn"
-import { vaultABI } from "@/app/types/wagmi/generated"
+import { vaultAbi } from "@/app/types/wagmi/generated"
 import { Address, encodeFunctionData } from "viem"
 
 export class VaultProxy {
@@ -9,7 +9,7 @@ export class VaultProxy {
             to: VAULT_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
-                abi: vaultABI,
+                abi: vaultAbi,
                 functionName: "deposit",
                 args: [trader, big2Bigint(amount, USDT_DECIMALS)],
             }),
@@ -21,7 +21,7 @@ export class VaultProxy {
             to: VAULT_ADDRESS,
             value: 0n,
             data: encodeFunctionData({
-                abi: vaultABI,
+                abi: vaultAbi,
                 functionName: "setAuthorization",
                 args: [authorized, isAuthorized],
             }),
