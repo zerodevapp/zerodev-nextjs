@@ -5,18 +5,17 @@ import {
     Address,
     Chain,
     createPublicClient,
+    getAbiItem,
     hashMessage,
     Hex,
     http,
+    toFunctionSelector,
     type Transport,
     WalletClient,
-    encodeFunctionData,
     zeroAddress,
-    toFunctionSelector,
-    getAbiItem,
 } from "viem"
-import { optimism, sepolia } from "viem/chains"
-import { toPermissionValidator, deserializePermissionAccount, serializePermissionAccount } from "@zerodev/permissions"
+import { optimismSepolia } from "viem/chains"
+import { deserializePermissionAccount, serializePermissionAccount, toPermissionValidator } from "@zerodev/permissions"
 import { ParamCondition, toCallPolicy, toSignatureCallerPolicy, toSudoPolicy } from "@zerodev/permissions/policies"
 import { privateKeyToAccount } from "viem/accounts"
 import {
@@ -33,37 +32,31 @@ import {
     getAction,
     walletClientToSmartAccountSigner,
 } from "permissionless"
-import { readContract, writeContract } from "viem/actions"
+import { readContract } from "viem/actions"
 import { MockRequestorAbi } from "./abis/MockRequestorAbi"
 import { erc20Abi, Erc20Proxy } from "@/app/Erc20Proxy"
 import Big from "big.js"
-import { clearingHouseABI, vaultABI } from "@/app/types/wagmi/generated"
+import { clearingHouseAbi, orderGatewayV2Abi, pythOracleAdapterAbi, vaultAbi } from "@/app/types/wagmi/generated"
+import { EntryPoint } from "permissionless/types"
+import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
 import { VaultProxy } from "@/app/VaultProxy"
 import { ClearingHouseProxy } from "@/app/ClearingHouseProxy"
-import { EntryPoint } from "permissionless/types"
-import { TEST_ERC20Abi } from "./abis/Test_ERC20Abi"
-import { createPimlicoBundlerClient } from "permissionless/clients/pimlico"
 
-const BUNDLER_URL = `https://meta-aa-provider.onrender.com/api/v3/bundler/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?bundlerProvider=PIMLICO`
-const PAYMASTER_URL = `https://meta-aa-provider.onrender.com/api/v2/paymaster/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?paymasterProvider=PIMLICO`
+const BUNDLER_URL = `https://rpc.zerodev.app/api/v2/bundler/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?bundlerProvider=PIMLICO`
+const PAYMASTER_URL = `https://rpc.zerodev.app/api/v2/paymaster/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}?paymasterProvider=PIMLICO`
 const PASSKEY_SERVER_URL = `https://passkeys.zerodev.app/api/v3/${process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID}`
-export const CHAIN = sepolia
+export const CHAIN = optimismSepolia
 
 export const MOCK_REQUESTOR_ADDRESS = "0xF972dba9e3642d32050c3a9E6c1a1F8A809EB910" as Address
-export const USDT_CONTRACT_ADDRESS = "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" as Address
+export const USDT_CONTRACT_ADDRESS = "0xA8Eba06366A8ad5E59Ef29477E7a4B384ea648Bf" as Address
 export const USDT_DECIMALS = 6
-
-export const VAULT_ADDRESS = "0x5aa45D0349c54D5BD241Dc6ece7b42601179ec59" as Address
-
-export const CLEARING_HOUSE_ADDRESS = "0x4570e98cEF4b602B7A66f51CD6A51E2281075a46" as Address
-
-export const ORDER_GATEWAY_V2_ADDRESS = "0x186841f8c1B9514D7B627A691b7d15831A17553B" as Address
-
-// For testing purposes
-export const Test_ERC20Address = "0x3870419Ba2BBf0127060bCB37f69A1b1C090992B" as Address
+export const VAULT_ADDRESS = "0x967A047e7B5f24cF574BA58389BA09a418EAf805" as Address
+export const CLEARING_HOUSE_ADDRESS = "0x71c8c788fe1115A12d390b785AE8408cD959ba53" as Address
+export const ORDER_GATEWAY_V2_ADDRESS = "0xc66974D9a1fd57283FF034b909D9BE09C0ccAFf1" as Address
 
 export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined> {
-    constructor(private readonly sessionKeyStore: SessionKeyStore) {}
+    constructor(private readonly sessionKeyStore: SessionKeyStore) {
+    }
 
     private getEntryPoint(): EntryPoint {
         return ENTRYPOINT_ADDRESS_V07
@@ -76,12 +69,9 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
     }
 
     private getPimlicoBundlerClient = () => {
-        if (!process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_RPC_HOST)
-            throw new Error("NEXT_PIMLICO_BUNDLER_RPC_HOST environment variable not set")
-
         return createPimlicoBundlerClient({
             chain: CHAIN,
-            transport: http(`${process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_RPC_HOST}`),
+            transport: http(BUNDLER_URL),
             entryPoint: this.getEntryPoint(),
         })
     }
@@ -168,28 +158,14 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         )
         console.log("kernelAccount", kernelAccount)
         const kernelClient = this.createKernelClient(CHAIN, kernelAccount)
-        // const erc20Proxy = new Erc20Proxy(USDT_CONTRACT_ADDRESS, USDT_DECIMALS)
-        // const vaultProxy = new VaultProxy()
-        // const clearingHouseProxy = new ClearingHouseProxy()
-        // const callData = await kernelClient.account.encodeCallData([
-        //     erc20Proxy.getApproveCallData(VAULT_ADDRESS, Big(10)),
-        //     // vaultProxy.getDepositCallData(kernelAccount.address, Big(10)),
-        //     // vaultProxy.getSetAuthorizationCallData(ORDER_GATEWAY_V2_ADDRESS, true),
-        //     // clearingHouseProxy.getSetAuthorizationCallData(ORDER_GATEWAY_V2_ADDRESS, true),
-        // ])
-
-        // console.log("Test_ERC20Address", Test_ERC20Address)
-
+        const erc20Proxy = new Erc20Proxy(USDT_CONTRACT_ADDRESS, USDT_DECIMALS)
+        const vaultProxy = new VaultProxy()
+        const clearingHouseProxy = new ClearingHouseProxy()
         const callData = await kernelClient.account.encodeCallData([
-            {
-                to: Test_ERC20Address,
-                value: 0n,
-                data: encodeFunctionData({
-                    abi: TEST_ERC20Abi,
-                    functionName: "mint",
-                    args: [zeroAddress, 100000000n],
-                }),
-            },
+            erc20Proxy.getApproveCallData(VAULT_ADDRESS, Big(10)),
+            // vaultProxy.getDepositCallData(kernelAccount.address, Big(10)),
+            // vaultProxy.getSetAuthorizationCallData(ORDER_GATEWAY_V2_ADDRESS, true),
+            // clearingHouseProxy.getSetAuthorizationCallData(ORDER_GATEWAY_V2_ADDRESS, true),
         ])
 
         const userOpHash = await kernelClient.sendUserOperation({
@@ -242,7 +218,7 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
 
         const modularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: eoaEcdsaSigner,
-            policies: [await toSudoPolicy({})],
+            policies: [toSudoPolicy({})],
             entryPoint: this.getEntryPoint(),
         })
 
@@ -255,22 +231,7 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
 
         const sessionKeyModularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: sessionKeySigner,
-            policies: [
-                await toCallPolicy({
-                    permissions: [
-                        {
-                            target: Test_ERC20Address,
-                            valueLimit: BigInt(0),
-                            abi: TEST_ERC20Abi,
-                            functionName: "mint",
-                            args: [{ condition: ParamCondition.EQUAL, value: zeroAddress }, null],
-                        },
-                    ],
-                }),
-                await toSignatureCallerPolicy({
-                    allowedCallers: [MOCK_REQUESTOR_ADDRESS],
-                }),
-            ],
+            policies: this.getPolicies(),
             entryPoint: this.getEntryPoint(),
         })
 
@@ -293,6 +254,100 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         return kernelAccount
     }
 
+    private getPolicies() {
+        return [
+            toCallPolicy({
+                permissions: [
+                    {
+                        target: USDT_CONTRACT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        abi: erc20Abi,
+                        functionName: "approve",
+                        args: [{ condition: ParamCondition.EQUAL, value: VAULT_ADDRESS }, null],
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // @ts-ignore
+                        functionName: "deposit",
+                        args: [null, null],
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // @ts-ignore
+                        functionName: "withdraw",
+                        args: [null],
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // functionName: "transferFundToMargin",
+                        // args: [null, null],
+                        selector: toFunctionSelector("transferFundToMargin(uint256,uint256)"),
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // functionName: "transferMarginToFund",
+                        // args: [null, null],
+                        selector: toFunctionSelector("transferMarginToFund(uint256,uint256)"),
+                    },
+                    {
+                        target: VAULT_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: vaultAbi,
+                        // @ts-ignore
+                        functionName: "setAuthorization",
+                        args: [null, null],
+                    },
+                    {
+                        target: CLEARING_HOUSE_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: clearingHouseAbi,
+                        // @ts-ignore
+                        functionName: "setAuthorization",
+                        args: [null, null],
+                    },
+                    {
+                        target: CLEARING_HOUSE_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: pythOracleAdapterAbi,
+                        // @ts-ignore
+                        functionName: "updatePrice",
+                        args: [null, null],
+                    },
+                    {
+                        target: ORDER_GATEWAY_V2_ADDRESS,
+                        valueLimit: BigInt(0),
+                        // @ts-ignore
+                        abi: orderGatewayV2Abi,
+                        // @ts-ignore
+                        functionName: "cancelOrder",
+                        args: [null, null],
+                    },
+                    {
+                        target: zeroAddress,
+                    },
+                ],
+            }),
+            toSignatureCallerPolicy({
+                allowedCallers: [MOCK_REQUESTOR_ADDRESS],
+            }),
+        ]
+    }
+
     async createEoaKernelAccount(walletClient: WalletClient<Transport, TChain, Account>) {
         const start = Date.now()
 
@@ -304,7 +359,7 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
 
         const modularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: eoaEcdsaSigner,
-            policies: [await toSudoPolicy({})],
+            policies: [toSudoPolicy({})],
             entryPoint: this.getEntryPoint(),
         })
 
@@ -336,7 +391,7 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         })
         const modularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: webAuthnModularSigner,
-            policies: [await toSudoPolicy({})],
+            policies: [toSudoPolicy({})],
             entryPoint: this.getEntryPoint(),
         })
 
@@ -344,22 +399,7 @@ export class ModularZerodev<TChain extends Chain | undefined = Chain | undefined
         const sessionKeySigner = toECDSASigner({ signer: sessionKeyAccount })
         const sessionKeyModularPermissionPlugin = await toPermissionValidator(publicClient, {
             signer: sessionKeySigner,
-            policies: [
-                await toCallPolicy({
-                    permissions: [
-                        {
-                            target: Test_ERC20Address,
-                            valueLimit: BigInt(0),
-                            abi: TEST_ERC20Abi,
-                            functionName: "mint",
-                            args: [{ condition: ParamCondition.EQUAL, value: zeroAddress }, null],
-                        },
-                    ],
-                }),
-                await toSignatureCallerPolicy({
-                    allowedCallers: [MOCK_REQUESTOR_ADDRESS],
-                }),
-            ],
+            policies: this.getPolicies(),
             entryPoint: this.getEntryPoint(),
         })
 
