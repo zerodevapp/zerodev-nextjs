@@ -9,6 +9,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    "inlineSources": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
@@ -20,6 +21,8 @@
     "paths": {
       "@/*": ["./*"]
     },
+    "sourceMap": true,
+    "sourceRoot": "/",
     "target": "es2020"
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
