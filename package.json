@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@sentry/nextjs": "^7.112.2",
     "@zerodev/passkey-validator": "5.2.0",
     "@zerodev/permissions": "5.2.0",
     "@zerodev/sdk": "5.2.0",
